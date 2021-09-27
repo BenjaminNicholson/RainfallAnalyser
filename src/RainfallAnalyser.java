@@ -1,34 +1,62 @@
 import com.opencsv.CSVReader;
-import com.opencsv.exceptions.CsvValidationException;
+import com.opencsv.CSVReaderBuilder;
+import com.opencsv.exceptions.CsvException;
+
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 
 
 public class RainfallAnalyser {
+    public static final int MONTH_INDEX = 3;
+    public static final int DAY_INDEX = 4;
+    public static final int RAIN_INDEX = 5;
 
     public static void main(String[] args) {
-        Object next;
-        for (List<String> strings : fileReader()) {
-            next = strings;
-            System.out.println(next);
-        }
-    }
 
-    public static List<List<String>> fileReader() {
-        List<List<String>> rainfallValues = new ArrayList<>();
-        try (CSVReader fileInput = new CSVReader(new FileReader(
-                "C:\\Users\\bensk\\IdeaProjects\\RainfallAnalyser\\src\\MountSheridanStationCNS.csv"))) {
-            String[] values;
+        List<String[]> fileValues = new ArrayList<>();
+        HashMap<String, Double> monthMap = new HashMap<>();
+        HashMap<String, Double> dayMinMap = new HashMap<>();
+        HashMap<String, Double> dayMaxMap = new HashMap<>();
 
-            while ((values = fileInput.readNext()) != null) {
-                rainfallValues.add(Arrays.asList(values));
+        try {
+            FileReader fileReader = new FileReader(
+            "C:\\Users\\bensk\\IdeaProjects\\RainfallAnalyser\\src\\MountSheridanStationCNS.csv");
+            CSVReader csvReader = new CSVReaderBuilder(fileReader).withSkipLines(1).build();
+            fileValues = csvReader.readAll();
+
+
+            for (String[] row : fileValues) {
+                System.out.println(Arrays.toString(row));
+                collectMonths(monthMap, row);
+//                collectMinDays(dayMinMap, row);
+//                collectMaxDays(dayMaxMap, row);
             }
-        } catch (IOException | CsvValidationException e) {
+        } catch (IOException | CsvException e) {
             e.printStackTrace();
         }
-        return rainfallValues;
+        System.out.println();
+
+    }
+
+    private static void collectMonths(HashMap<String, Double> monthMap, String[] row) {
+        String rainString = row[RAIN_INDEX];
+        String monthString = row[MONTH_INDEX];
+        double rain = 0;
+        try {
+            rain = Double.parseDouble(rainString);
+        } catch (Exception ignored) {}
+
+        if (monthMap.containsKey(monthString)) {
+            double oldRain = monthMap.get(monthString);
+            double newRain = oldRain + rain;
+            monthMap.put(monthString, newRain);
+        }
+        else {
+            monthMap.put(monthString, rain);
+        }
     }
 }
