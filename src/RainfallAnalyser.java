@@ -1,119 +1,96 @@
-import com.opencsv.CSVReader;
-import com.opencsv.CSVReaderBuilder;
-import com.opencsv.CSVWriter;
-import com.opencsv.exceptions.CsvException;
-
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.util.*;
 
 
 public class RainfallAnalyser {
-//    public static final int INDEX_YEAR = 2;
-    public static final int INDEX_MONTH = 3;
-    public static final int INDEX_DAY = 4;
-    public static final int INDEX_RAINFALL = 5;
-
     public static void main(String[] args) {
+        String path = "src/MountSheridanStationCNS.csv";
 
-        HashMap<String, Double> monthHashMap = new HashMap<>();
-        HashMap<String, Double> dayMinHasHMap = new HashMap<>();
-        HashMap<String, Double> dayMaxHashMap = new HashMap<>();
         try {
-            FileReader fileReader = new FileReader(
-                    "C:\\Users\\bensk\\IdeaProjects\\RainfallAnalyser\\src\\MountSheridanStationCNS.csv");
-            CSVReader csvReader = new CSVReaderBuilder(fileReader).withSkipLines(1).build();
-            List<String[]> fileContents = csvReader.readAll();
+            textio.TextIO.readFile(path);
+            String savePath = generateSavePath(path);
+            analyseDataset(savePath);
 
-            for (String[] row : fileContents) {
-                System.out.println(Arrays.toString(row));
-                insertMonths(monthHashMap, row);
-                insertDay(dayMinHasHMap, row, true);
-                insertDay(dayMaxHashMap, row, false);
+        } catch (Exception e) {
+            System.out.println("ERROR: failed to process file");
+        }
+    }
+
+    private static String generateSavePath(String path) {
+        String[] pathElements = path.trim().split("/");
+        String[] filenameElements = pathElements[1].trim()
+                .split("\\.");
+        return String.format("%s/%s_analysed.%s", pathElements[0],
+                filenameElements[0], filenameElements[1]);
+    }
+
+    private static void analyseDataset(String savePath) {
+        String[] header = extractRecord(); // ignore header record
+        if (header == null) {
+            System.out.println("ERROR: file is empty");
+            return;
+        }
+
+        // setup accumulation
+        double totalRainfall = 0.0;
+        double minRainfall = Double.POSITIVE_INFINITY;
+        double maxRainfall = 0.0;
+
+        int currentMonth = 1; // sentinel
+        int currentYear = 0; // sentinel
+
+        String[] record = extractRecord(); // get record
+
+        // setup output file
+        textio.TextIO.writeFile(savePath);
+
+        // create new records for save file
+        while (record != null) {
+            // convert important fields to correct data types
+            int year = Integer.parseInt(record[2]);
+            int month = Integer.parseInt(record[3]);
+            int day = Integer.parseInt(record[4]);
+            double rainfall = record.length < 6 ? 0 : Double.parseDouble(record[5]);
+
+            if ((month < 1 || month > 12) || (day < 1 || day > 31)) {
+                System.out.println("ERROR: failed to process file");
+                return;
             }
-        } catch (IOException | CsvException e) {
-            e.printStackTrace();
-        }
 
-        System.out.println(monthHashMap);
-        System.out.println(dayMinHasHMap);
-        System.out.println(dayMaxHashMap);
+            if (month != currentMonth) {
+                // new month detected - save record and reset accumulation
+                writeRecord(totalRainfall, minRainfall, maxRainfall, currentMonth, currentYear == 0 ? year : currentYear);
 
-        String pathToFile = "C:\\Users\\bensk\\IdeaProjects\\RainfallAnalyser\\src\\MonthHashMap.csv";
-        String[] header = {"Month", "Total Rainfall"};
-        writeToCSV(monthHashMap, pathToFile, header);
-
-        pathToFile = "C:\\Users\\bensk\\IdeaProjects\\RainfallAnalyser\\src\\MinDayHashMap.csv";
-        header = new String[]{"Month-day", "Min Rainfall"};
-        writeToCSV(dayMinHasHMap, pathToFile, header);
-
-        pathToFile = "C:\\Users\\bensk\\IdeaProjects\\RainfallAnalyser\\src\\MaxDayHashMap.csv";
-        header = new String[]{"Month-day", "Max Rainfall"};
-        writeToCSV(dayMaxHashMap, pathToFile, header);
-    }
-
-    private static void writeToCSV(HashMap<String, Double> monthHashMap, String pathToFile, String[] header) {
-        try {
-            FileWriter writer = new FileWriter(pathToFile);
-            CSVWriter  csvWriter = new CSVWriter(writer);
-            csvWriter.writeNext(header);
-            for (Map.Entry<String, Double> entry : monthHashMap.entrySet()) {
-                String key = entry.getKey();
-                Double value = entry.getValue();
-                String[] row = {key, value.toString()};
-                csvWriter.writeNext(row);
+                currentMonth = month;
+                currentYear = year;
+                totalRainfall = 0;
+                minRainfall = Double.POSITIVE_INFINITY;
+                maxRainfall = 0;
+                continue;
             }
-            csvWriter.close();
-        } catch (IOException e) {
-            e.printStackTrace();
+
+            // update accumulation
+            totalRainfall += rainfall;
+            if (rainfall < minRainfall) minRainfall = rainfall;
+            if (rainfall > maxRainfall) maxRainfall = rainfall;
+
+            record = extractRecord(); // get record
         }
 
-    }
-
-    private static void insertDay(HashMap<String, Double> monthMap, String[] row, boolean isMin) {
-        String monthString = row[INDEX_MONTH];
-        String rainfallString = row[INDEX_RAINFALL];
-        String dayString = row[INDEX_DAY];
-        String keyString = monthString + "-day-" + dayString;
-        double rain = 0;
-        try {
-            rain = Double.parseDouble(rainfallString);
-        } catch (Exception ignored) {}
-
-        if (monthMap.containsKey(keyString)) {
-            double oldRainfall = monthMap.get(keyString);
-            double newRainfall;
-            if (isMin) {
-                newRainfall = Math.min(oldRainfall, rain);
-            } else {
-                newRainfall = Math.max(oldRainfall, rain);
-            }
-            monthMap.put(keyString, newRainfall);
-        } else {
-            monthMap.put(keyString, rain);
-        }
-
-    }
-
-    private static void insertMonths(HashMap<String, Double> monthMap, String[] row) {
-        String monthString = row[INDEX_MONTH];
-        String rainfallString = row[INDEX_RAINFALL];
-        String keyString = "month- " + monthString + " rainfall " ;
-        double rain = 0;
-
-        try {
-            rain = Double.parseDouble(rainfallString);
-        } catch (Exception ignored) {
-        }
-
-        if (monthMap.containsKey(keyString)) {
-            double oldRain = monthMap.get(keyString);
-            double newRain = oldRain + rain;
-            monthMap.put(keyString, newRain);
-        } else {
-            monthMap.put(keyString, rain);
+        if (currentMonth < 12) {
+            // last month is incomplete - save record
+            writeRecord(totalRainfall, minRainfall, maxRainfall, currentMonth, currentYear);
         }
     }
 
+    private static void writeRecord(double totalRainfall, double minRainfall, double maxRainfall, int currentMonth, int year) {
+        String newRecord = String.format("%d,%d,%1.2f,%1.2f,%1.2f%s", year, currentMonth,
+                totalRainfall, minRainfall, maxRainfall, System.lineSeparator());
+        textio.TextIO.putf(newRecord);
+    }
+
+    private static String[] extractRecord() {
+        if (textio.TextIO.eof()) return null; // convert EOF to null
+
+        String text = textio.TextIO.getln();
+        return text.trim().split(",");
+    }
 }
